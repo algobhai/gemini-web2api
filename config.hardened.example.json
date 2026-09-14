@@ -10,6 +10,5 @@
   "temporary_chats": true,
   "multimodal_enabled": false,
   "routing_verification": "strict-pro",
-  "persist_rotated_cookies": false,
   "cookie_stale_warning_sec": 7200
 }
