@@ -1,0 +1,15 @@
+{
+  "port": 8081,
+  "host": "127.0.0.1",
+  "allow_public": false,
+  "api_keys": [],
+  "cors_allow_origin": null,
+  "cookie_file": "gemini-auth.json",
+  "proxy": null,
+  "log_requests": true,
+  "temporary_chats": true,
+  "multimodal_enabled": false,
+  "routing_verification": "strict-pro",
+  "persist_rotated_cookies": false,
+  "cookie_stale_warning_sec": 7200
+}
