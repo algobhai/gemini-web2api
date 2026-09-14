@@ -5,6 +5,7 @@ adds the model-selection header and verifies non-streaming responses.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
@@ -85,10 +86,33 @@ def install_transport_patches(legacy, route_state: dict, log) -> None:
                 category = None
                 if str(method).upper() == "POST" and "StreamGenerate" in str(url):
                     category = _category_from_form(kwargs.get("content"))
-                if category is not None:
-                    remember_requested(category, streaming=True)
-                    kwargs["headers"] = add_routing_header(kwargs.get("headers"), category)
-                return super().stream(method, url, *args, **kwargs)
+                if category is None:
+                    return super().stream(method, url, *args, **kwargs)
+
+                remember_requested(category, streaming=True)
+                kwargs["headers"] = add_routing_header(kwargs.get("headers"), category)
+                base_context = super().stream(method, url, *args, **kwargs)
+
+                @contextlib.contextmanager
+                def monitored_context():
+                    with base_context as response:
+                        original_iter_text = response.iter_text
+
+                        def monitored_iter_text(*iter_args, **iter_kwargs):
+                            raw_parts = []
+                            for chunk in original_iter_text(*iter_args, **iter_kwargs):
+                                raw_parts.append(chunk)
+                                yield chunk
+                            served_id, served_label = extract_route_metadata("".join(raw_parts))
+                            diag = route_diagnostic(category, served_id, served_label)
+                            route_state.update({"timestamp": int(time.time()), **diag.to_dict()})
+                            if diag.status == "mismatch":
+                                log(f"ROUTING MISMATCH (stream): {diag.detail}; served={served_label or served_id or 'unknown'}")
+
+                        response.iter_text = monitored_iter_text
+                        yield response
+
+                return monitored_context()
 
         legacy.httpx.Client = RoutedHttpxClient
 
@@ -108,8 +132,11 @@ def install_transport_patches(legacy, route_state: dict, log) -> None:
         strict_failure = diag.status == "mismatch"
         if diag.status == "unknown" and int(category) == 3 and mode in {"strict-pro", "strict"}:
             strict_failure = True
-        if strict_failure and (mode == "strict" or (mode == "strict-pro" and int(category) == 3)):
-            raise RuntimeError(f"model routing verification failed: {diag.detail}")
-        return text
+        try:
+            if strict_failure and (mode == "strict" or (mode == "strict-pro" and int(category) == 3)):
+                raise RuntimeError(f"model routing verification failed: {diag.detail}")
+            return text
+        finally:
+            _tls.requested_category = None
 
     legacy.extract_response_text = verified_extract
