@@ -1,6 +1,8 @@
 import json
 import unittest
+import urllib.parse
 
+from hardened_transport import _category_from_form
 from hardening import (
     MODEL_ID_FLASH,
     MODEL_ID_FLASH_LITE,
@@ -35,6 +37,13 @@ class HardeningTests(unittest.TestCase):
     def test_category_ids(self):
         self.assertEqual(json.loads(build_model_header(1))[4], MODEL_ID_FLASH)
         self.assertEqual(json.loads(build_model_header(6))[4], MODEL_ID_FLASH_LITE)
+
+    def test_category_parser_matches_upstream_form(self):
+        inner = [None] * 80
+        inner[79] = 3
+        outer = [None, json.dumps(inner)]
+        body = urllib.parse.urlencode({"f.req": json.dumps(outer)})
+        self.assertEqual(_category_from_form(body), 3)
 
     def test_extract_route_metadata(self):
         inner = [None] * 43
