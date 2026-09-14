@@ -1,0 +1,29 @@
+name: Hardened gateway tests
+
+on:
+  push:
+    branches:
+      - hardening-model-routing-v1
+  pull_request:
+    paths:
+      - "hardening.py"
+      - "hardened_transport.py"
+      - "hardened_gateway.py"
+      - "tests/**"
+      - ".github/workflows/hardening-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile hardened modules
+        run: python -m py_compile hardening.py hardened_transport.py hardened_gateway.py tests/test_hardening.py
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
